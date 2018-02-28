@@ -1,5 +1,4 @@
-extern crate nom;
-
+mod lexer;
 pub mod parser;
 
 #[cfg(test)]
