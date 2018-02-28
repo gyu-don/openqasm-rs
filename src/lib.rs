@@ -1,3 +1,5 @@
+mod keyword;
+mod tokens;
 mod lexer;
 pub mod parser;
 

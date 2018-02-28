@@ -1,12 +1,12 @@
 use keyword;
 
-struct Token {
+pub struct Token<'a> {
     pub token: TokenType,
-    pub filename: Option<&str>,
+    pub filename: Option<&'a str>,
     pub position: (usize, usize),
 }
 
-enum TokenType {
+pub enum TokenType {
     Real(f64),
     UInt(usize),
     Idenfier(String),
@@ -54,42 +54,47 @@ enum TokenType {
     RSqBracket,
 }
 
-fn match_keyword_exact(s: &str) -> Option<TokenType> {
-    Some(match s {
-        OPENQASM    => TokenType::Openqasm,
-        INCLUDE     => TokenType::Include,
-        QREG        => TokenType::Qreg,
-        CREG        => TokenType::Creg,
-        BARRIER     => TokenType::Barrier,
-        GATE        => TokenType::Gate,
-        IF          => TokenType::If,
-        MEASURE     => TokenType::Measure,
-        OPAQUE      => TokenType::Opaque,
-        RESET       => TokenType::Reset,
-        PI          => TokenType::Pi,
-        U           => TokenType::U,
-        CX          => TokenType::CX,
-        SIN         => TokenType::Sin,
-        COS         => TokenType::Cos,
-        TAN         => TokenType::Tan,
-        EXP         => TokenType::Exp,
-        LN          => TokenType::Ln,
-        SQRT        => TokenType::Sqrt,
-        PLUS        => TokenType::Plus,
-        MINUS       => TokenType::Minus,
-        TIMES       => TokenType::Times,
-        DEVIDE      => TokenType::Devide,
-        POWER       => TokenType::Power,
-        COMMA       => TokenType::Comma,
-        SEMICOLON   => TokenType::Semicolon,
-        DOUBLEEQUAL => TokenType::DoubleEqual,
-        ARROW       => TokenType::Arrow,
-        LPAREN      => TokenType::LParen,
-        RPAREN      => TokenType::RParen,
-        LBRACE      => TokenType::LBrace,
-        RBRACE      => TokenType::RBrace,
-        LSQBRACKET  => TokenType::LSqBracket,
-        RSQBRACKET  => TokenType::RSqBracket,
-        _ => return None,
-    })
+pub fn match_keyword_exact(s: &str) -> Option<TokenType> {
+    macro_rules! match_str_some {
+        ($s: expr, { $($key: expr => $value: expr,)* }) => {
+            $(if $s == $key { return Some($value); })*
+            return None;
+        }
+    }
+    match_str_some! (s, {
+        keyword::OPENQASM    => TokenType::Openqasm,
+        keyword::INCLUDE     => TokenType::Include,
+        keyword::QREG        => TokenType::Qreg,
+        keyword::CREG        => TokenType::Creg,
+        keyword::BARRIER     => TokenType::Barrier,
+        keyword::GATE        => TokenType::Gate,
+        keyword::IF          => TokenType::If,
+        keyword::MEASURE     => TokenType::Measure,
+        keyword::OPAQUE      => TokenType::Opaque,
+        keyword::RESET       => TokenType::Reset,
+        keyword::PI          => TokenType::Pi,
+        keyword::U           => TokenType::U,
+        keyword::CX          => TokenType::CX,
+        keyword::SIN         => TokenType::Sin,
+        keyword::COS         => TokenType::Cos,
+        keyword::TAN         => TokenType::Tan,
+        keyword::EXP         => TokenType::Exp,
+        keyword::LN          => TokenType::Ln,
+        keyword::SQRT        => TokenType::Sqrt,
+        keyword::PLUS        => TokenType::Plus,
+        keyword::MINUS       => TokenType::Minus,
+        keyword::TIMES       => TokenType::Times,
+        keyword::DEVIDE      => TokenType::Devide,
+        keyword::POWER       => TokenType::Power,
+        keyword::COMMA       => TokenType::Comma,
+        keyword::SEMICOLON   => TokenType::Semicolon,
+        keyword::DOUBLEEQUAL => TokenType::DoubleEqual,
+        keyword::ARROW       => TokenType::Arrow,
+        keyword::LPAREN      => TokenType::LParen,
+        keyword::RPAREN      => TokenType::RParen,
+        keyword::LBRACE      => TokenType::LBrace,
+        keyword::RBRACE      => TokenType::RBrace,
+        keyword::LSQBRACKET  => TokenType::LSqBracket,
+        keyword::RSQBRACKET  => TokenType::RSqBracket,
+    });
 }

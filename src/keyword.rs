@@ -1,6 +1,6 @@
 macro_rules! def_keywords {
-    {($name: id: $keyword: expr,)+} => {
-        (const $name: &'static str = $keyword;)+
+    {$($name: ident: $keyword: expr,)+} => {
+        $(pub const $name: &'static str = $keyword;)+
     }
 }
 
