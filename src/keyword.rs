@@ -27,7 +27,7 @@ def_keywords! {
     EXP:         "exp",
     LN:          "ln",
     SQRT:        "sqrt",
-    // marks
+    // punctuations
     PLUS:        "+",
     MINUS:       "-",
     TIMES:       "*",
