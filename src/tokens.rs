@@ -6,8 +6,6 @@ pub struct Token<P: AsRef<Path>> {
     pub filename: Option<P>,
     pub pos: usize,
     pub len: usize,
-    pub cols: usize,
-    pub rows: usize,
 }
 
 pub enum TokenType {

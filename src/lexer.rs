@@ -14,8 +14,6 @@ struct SplitToken<'a, P: AsRef<Path> + Debug> {
     code: &'a str,
     filename: P,
     pos: usize,
-    cols: usize,
-    rows: usize,
 }
 
 #[derive(Debug)]
@@ -28,9 +26,9 @@ struct TokenizeError<P: AsRef<Path> + Debug> {
     errstr: String,
 }
 impl<P: AsRef<Path> + Debug> TokenizeError<P> {
-    fn new(filename: P, pos: usize, len: usize, cols: usize, rows: usize, errmsg: &str) -> TokenizeError<P> {
+    fn new(filename: P, pos: usize, len: usize, errmsg: &str) -> TokenizeError<P> {
         TokenizeError {
-            filename, pos, len, cols, rows, errstr: format!("{}:{}:{} {}", filename.as_ref().to_string_lossy(), cols, rows, errmsg)
+            filename, pos, len, 0, 0, errstr: format!("{}:{}:{} {}", filename.as_ref().to_string_lossy(), cols, rows, errmsg)
         }
     }
 }
@@ -47,7 +45,7 @@ impl<P: AsRef<Path> + Debug> Error for TokenizeError<P> {
 
 impl<'a, P: AsRef<Path> + Debug> SplitToken<'a, P> {
     fn new(code: &'a str, filename: P) -> SplitToken<'a, P> {
-        SplitToken { code, filename, pos: 0, cols: 0, rows: 0 }
+        SplitToken { code, filename, pos: 0 }
     }
 }
 
@@ -72,7 +70,6 @@ impl<'a, P: AsRef<Path> + Debug> Iterator for SplitToken<'a, P> {
             match state {
                 LexerState::Whitespace => {
                     if ch.is_ascii_whitespace() {
-                        if ch == b'\n' { self.rows += 1; self.cols = 0; } else { self.cols += 1; }
                         self.pos += 1;
                     } else if ch.is_ascii_digit() {
                         state = LexerState::Integer;
@@ -81,7 +78,7 @@ impl<'a, P: AsRef<Path> + Debug> Iterator for SplitToken<'a, P> {
                     } else if ch.is_ascii_punctuation() {
                         state = LexerState::Punctuation;
                     } else {
-                        return Some(Err(TokenizeError::new(self.filename, self.pos, 1, self.cols, self.rows, "Unexpected character.")));
+                        return Some(Err(TokenizeError::new(self.filename, self.pos, 1, "Unexpected character.")));
                     }
                 },
                 LexerState::Punctuation => {
