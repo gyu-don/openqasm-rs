@@ -1,9 +1,9 @@
 use std::path::Path;
 use keyword;
 
-pub struct Token<P: AsRef<Path>> {
+pub struct Token<'a, P: 'a + AsRef<Path>> {
     pub token: TokenType,
-    pub filename: Option<P>,
+    pub filename: Option<&'a P>,
     pub pos: usize,
     pub len: usize,
 }
@@ -11,9 +11,9 @@ pub struct Token<P: AsRef<Path>> {
 pub enum TokenType {
     Real(f64),
     UInt(usize),
-    Idenfier(String),
+    Identifier(String),
     StringLiteral(String),
-    Comment(String),
+    Comment(Vec<u8>),
     // keywords
     Openqasm,
     Include,
@@ -56,10 +56,10 @@ pub enum TokenType {
     RSqBracket,
 }
 
-pub fn match_keyword_exact(s: &str) -> Option<TokenType> {
+pub fn match_keyword_exact(s: &[u8]) -> Option<TokenType> {
     macro_rules! match_str_some {
         ($s: expr, { $($key: expr => $value: expr,)* }) => {
-            $(if $s == $key { return Some($value); })*
+            $(if $s == $key.as_bytes() { return Some($value); })*
             return None;
         }
     }
