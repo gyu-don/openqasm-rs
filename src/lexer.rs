@@ -1,72 +1,88 @@
 use std::error::Error;
 use std::fmt::{self, Debug, Display};
-use std::marker::PhantomData;
 use std::path::Path;
 use std::str;
 use tokens::{self, Token, TokenType};
 
-pub fn tokenize<P: AsRef<Path> + Debug>(code: &str, filename: P) -> Vec<Token<P>> {
-    // dummy
-    vec![]
+pub fn tokenize<'a>(code: &'a str, filename: &'a Path) -> Vec<TokenResult<'a>> {
+    SplitToken::new(code, &filename).collect()
 }
 
 #[derive(Debug)]
-struct SplitToken<'a, P: 'a + AsRef<Path> + Debug> {
-    code: &'a str,
-    filename: P,
-    pos: usize,
-}
-
-#[derive(Debug)]
-struct TokenizeError<'a, P: 'a + AsRef<Path> + Debug> {
-    pub filename: P,
+pub struct TokenizeError<'a> {
+    pub filename: &'a Path,
     pub pos: usize,
     pub len: usize,
     errstr: String,
-    _phantom: PhantomData<&'a u8>,
 }
-impl<'a, P: 'a + AsRef<Path> + Debug> TokenizeError<'a, P> {
-    fn new(filename: P, pos: usize, len: usize, errmsg: &str) -> TokenizeError<P> {
+impl<'a> TokenizeError<'a> {
+    fn new(filename: &'a Path, pos: usize, len: usize, errmsg: &str) -> TokenizeError<'a> {
         TokenizeError {
-            filename, pos, len, errstr: errmsg.to_owned(), _phantom: PhantomData
+            filename: filename,
+            pos,
+            len,
+            errstr: errmsg.to_owned(),
         }
     }
 }
-impl<'a, P: 'a + AsRef<Path> + Debug> Display for TokenizeError<'a, P> {
+impl<'a> Display for TokenizeError<'a> {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
         write!(f, "{}", self.errstr)
     }
 }
-impl<'a, P: 'a + AsRef<Path> + Debug> Error for TokenizeError<'a, P> {
+impl<'a> Error for TokenizeError<'a> {
     fn description(&self) -> &str {
         &self.errstr
     }
 }
 
-impl<'a, P: 'a + AsRef<Path> + Debug> SplitToken<'a, P> {
-    fn new(code: &'a str, filename: P) -> SplitToken<'a, P> {
-        SplitToken { code, filename, pos: 0 }
+pub type TokenResult<'a> = Result<Token<'a>, TokenizeError<'a>>;
+
+#[derive(Debug)]
+struct SplitToken<'a> {
+    code: &'a str,
+    filename: &'a Path,
+    pos: usize,
+}
+
+impl<'a> SplitToken<'a> {
+    fn new(code: &'a str, filename: &'a Path) -> SplitToken<'a> {
+        SplitToken {
+            code,
+            filename,
+            pos: 0,
+        }
     }
 }
 
-impl<'a, P: 'a + AsRef<Path> + Debug> Iterator for SplitToken<'a, P> {
-    type Item = Result<Token<'a, P>, TokenizeError<'a, P>>;
+impl<'a> Iterator for SplitToken<'a> {
+    type Item = TokenResult<'a>;
     fn next(&mut self) -> Option<Self::Item> {
+        #[derive(Debug)]
         enum LexerState {
             Whitespace,
             Identifier,
             Integer,
             Real,
+            StringLiteral,
             Comment,
             Punctuation,
         }
 
         let code = self.code.as_bytes();
-        if self.pos >= code.len() { return None }
+        if self.pos >= code.len() {
+            return None;
+        }
         let mut state = LexerState::Whitespace;
         let mut cur = self.pos;
         while cur < code.len() {
             let ch = code[cur];
+            // Debug
+            // println!("pos: {}, cur: {}, state: {:?}, ch: {}",
+            //          self.pos,
+            //          cur,
+            //          state,
+            //          char::from(ch));
             match state {
                 LexerState::Whitespace => {
                     if ch.is_ascii_whitespace() {
@@ -78,39 +94,96 @@ impl<'a, P: 'a + AsRef<Path> + Debug> Iterator for SplitToken<'a, P> {
                     } else if ch.is_ascii_punctuation() {
                         state = LexerState::Punctuation;
                     } else {
-                        return Some(Err(TokenizeError::new(self.filename, self.pos, 1, "Unexpected character.")));
+                        let pos = self.pos;
+                        self.pos += 1;
+                        return Some(Err(TokenizeError::new(self.filename,
+                                                           pos,
+                                                           1,
+                                                           "Unexpected character.")));
                     }
-                },
+                }
                 LexerState::Punctuation => {
                     if code[self.pos] == b'=' {
                         assert_eq!(self.pos + 1, cur);
                         if ch == b'=' {
-                            let tok = Token { token: TokenType::DoubleEqual, filename: Some(&self.filename), pos: self.pos, len: 2 };
+                            let tok = Token {
+                                token: TokenType::DoubleEqual,
+                                filename: Some(self.filename.as_ref()),
+                                pos: self.pos,
+                                len: 2,
+                            };
                             self.pos += 2;
                             return Some(Ok(tok));
                         } else {
-                            return Some(Err(TokenizeError::new(self.filename, self.pos, 1, "Unexpected character.")));
+                            let pos = self.pos;
+                            self.pos += 1;
+                            return Some(Err(TokenizeError::new(self.filename,
+                                                               pos,
+                                                               1,
+                                                               "Unexpected character.")));
                         }
                     } else if code[self.pos] == b'-' {
                         assert_eq!(self.pos + 1, cur);
                         if code[cur] == b'>' {
-                            let tok = Token { token: TokenType::Arrow, filename: Some(&self.filename), pos: self.pos, len: 2 };
+                            let tok = Token {
+                                token: TokenType::Arrow,
+                                filename: Some(self.filename.as_ref()),
+                                pos: self.pos,
+                                len: 2,
+                            };
                             self.pos += 2;
                             return Some(Ok(tok));
                         } else {
-                            let tok = Token { token: TokenType::Minus, filename: Some(&self.filename), pos: self.pos, len: 1 };
+                            let tok = Token {
+                                token: TokenType::Minus,
+                                filename: Some(self.filename.as_ref()),
+                                pos: self.pos,
+                                len: 1,
+                            };
                             self.pos += 1;
                             return Some(Ok(tok));
                         }
+                    } else if code[self.pos] == b'/' {
+                        assert_eq!(self.pos + 1, cur);
+                        if code[cur] == b'/' {
+                            state = LexerState::Comment;
+                            self.pos += 2;
+                            cur = self.pos;
+                            continue;
+                        } else {
+                            let tok = Token {
+                                token: TokenType::Devide,
+                                filename: Some(self.filename.as_ref()),
+                                pos: self.pos,
+                                len: 1,
+                            };
+                            self.pos += 1;
+                            return Some(Ok(tok));
+                        }
+                    } else if code[self.pos] == b'"' {
+                        state = LexerState::StringLiteral;
+                        self.pos += 1;
+                        cur = self.pos;
+                        continue;
                     } else {
                         match tokens::match_keyword_exact(&code[self.pos..self.pos + 1]) {
                             Some(kwd) => {
-                                let tok = Token { token: kwd, filename: Some(&self.filename), pos: self.pos, len: 1 };
+                                let tok = Token {
+                                    token: kwd,
+                                    filename: Some(self.filename.as_ref()),
+                                    pos: self.pos,
+                                    len: 1,
+                                };
                                 self.pos += 1;
                                 return Some(Ok(tok));
-                            },
+                            }
                             None => {
-                                return Some(Err(TokenizeError::new(self.filename, self.pos, 1, "Unexpected character.")));
+                                let pos = self.pos;
+                                self.pos += 1;
+                                return Some(Err(TokenizeError::new(self.filename,
+                                                                   pos,
+                                                                   1,
+                                                                   "Unexpected character.")));
                             }
                         }
                     }
@@ -120,9 +193,18 @@ impl<'a, P: 'a + AsRef<Path> + Debug> Iterator for SplitToken<'a, P> {
                     if ch.is_ascii_digit() || ch.is_ascii_alphabetic() || ch == b'_' {
                         // nothing.
                     } else {
-                        let toktype = tokens::match_keyword_exact(&code[self.pos..cur]).unwrap_or(TokenType::Identifier(String::from_utf8(code[self.pos..cur].to_owned()).unwrap()));
-                        let tok = Token { token: toktype, filename: Some(&self.filename), pos: self.pos, len: cur - self.pos };
-                        self.pos = cur + 1;
+                        let toktype = tokens::match_keyword_exact(&code[self.pos..cur])
+                            .unwrap_or(TokenType::Identifier(String::from_utf8(code[self.pos..
+                                                                               cur]
+                                    .to_owned())
+                                .unwrap()));
+                        let tok = Token {
+                            token: toktype,
+                            filename: Some(self.filename.as_ref()),
+                            pos: self.pos,
+                            len: cur - self.pos,
+                        };
+                        self.pos = cur;
                         return Some(Ok(tok));
                     }
                 }
@@ -132,8 +214,16 @@ impl<'a, P: 'a + AsRef<Path> + Debug> Iterator for SplitToken<'a, P> {
                     } else if ch == b'.' {
                         state = LexerState::Real;
                     } else {
-                        let tok = Token { token: TokenType::UInt(str::from_utf8(&code[self.pos..cur]).unwrap().parse().unwrap()), filename: Some(&self.filename), pos: self.pos, len: cur - self.pos };
-                        self.pos = cur + 1;
+                        let tok = Token {
+                            token: TokenType::UInt(str::from_utf8(&code[self.pos..cur])
+                                .unwrap()
+                                .parse()
+                                .unwrap()),
+                            filename: Some(self.filename.as_ref()),
+                            pos: self.pos,
+                            len: cur - self.pos,
+                        };
+                        self.pos = cur;
                         return Some(Ok(tok));
                     }
                 }
@@ -141,16 +231,53 @@ impl<'a, P: 'a + AsRef<Path> + Debug> Iterator for SplitToken<'a, P> {
                     if ch.is_ascii_digit() {
                         // nothing.
                     } else {
-                        let tok = Token { token: TokenType::Real(str::from_utf8(&code[self.pos..cur]).unwrap().parse().unwrap()), filename: Some(&self.filename), pos: self.pos, len: cur - self.pos };
-                        self.pos = cur + 1;
+                        let tok = Token {
+                            token: TokenType::Real(str::from_utf8(&code[self.pos..cur])
+                                .unwrap()
+                                .parse()
+                                .unwrap()),
+                            filename: Some(self.filename.as_ref()),
+                            pos: self.pos,
+                            len: cur - self.pos,
+                        };
+                        self.pos = cur;
                         return Some(Ok(tok));
+                    }
+                }
+                LexerState::StringLiteral => {
+                    if ch != b'"' {
+                        // nothing.
+                    } else {
+                        match String::from_utf8(code[self.pos..cur].to_owned()) {
+                            Ok(s) => {
+                                let tok = Token {
+                                    token: TokenType::StringLiteral(s),
+                                    filename: Some(self.filename.as_ref()),
+                                    pos: self.pos,
+                                    len: cur - self.pos,
+                                };
+                                self.pos = cur + 1;
+                                return Some(Ok(tok));
+                            }
+                            Err(e) => {
+                                return Some(Err(TokenizeError::new(self.filename,
+                                                                   self.pos,
+                                                                   1,
+                                                                   e.description())));
+                            }
+                        }
                     }
                 }
                 LexerState::Comment => {
                     if ch != b'\n' {
                         // nothing.
                     } else {
-                        let tok = Token { token: TokenType::Comment(code[self.pos..cur].to_owned()), filename: Some(&self.filename), pos: self.pos, len: cur - self.pos };
+                        let tok = Token {
+                            token: TokenType::Comment(code[self.pos..cur].to_owned()),
+                            filename: Some(self.filename.as_ref()),
+                            pos: self.pos,
+                            len: cur - self.pos,
+                        };
                         self.pos = cur + 1;
                         return Some(Ok(tok));
                     }

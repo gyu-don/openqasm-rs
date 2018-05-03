@@ -1,13 +1,15 @@
 use std::path::Path;
 use keyword;
 
-pub struct Token<'a, P: 'a + AsRef<Path>> {
+#[derive(Debug)]
+pub struct Token<'a> {
     pub token: TokenType,
-    pub filename: Option<&'a P>,
+    pub filename: Option<&'a Path>,
     pub pos: usize,
     pub len: usize,
 }
 
+#[derive(Debug)]
 pub enum TokenType {
     Real(f64),
     UInt(usize),
