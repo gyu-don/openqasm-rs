@@ -9,6 +9,39 @@ pub enum UnaryOp {
     Sqrt,
 }
 
+pub type OpenqasmVersion = f64;
+pub type GateName = String;
+pub type PathString = String;
+pub type CommentString = Vec<u8>;
+pub type NnInteger = u32;
+
+pub type Params = Vec<Expr>;
+pub type QArgs = Vec<QReg>;
+
+pub type Program = Vec<Statement>;
+
+pub enum Statement {
+    Openqasm(OpenqasmVersion),
+    Include(PathString),
+    Comment(CommentString),
+    If(CReg, NnInteger, Program),
+    Measure(QReg, CReg),
+    Opaque(GateName, Params, QArgs),
+    Gate(GateName, Params, QArgs, Program),
+    Reset(QReg),
+    Barrier,
+    Apply(GateName, Params, QArgs),
+}
+
+pub enum Predicate {
+}
+
+pub enum QReg {
+}
+
+pub enum CReg {
+}
+
 impl UnaryOp {
     pub fn apply(&self, v: f64) -> f64 {
         match *self {
