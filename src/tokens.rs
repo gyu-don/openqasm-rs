@@ -58,6 +58,15 @@ pub enum TokenType {
     RSqBracket,
 }
 
+impl<'a> Token<'a> {
+    pub fn is_comment(&self) -> bool {
+        match self.token {
+            TokenType::Comment(_) => true,
+            _ => false
+        }
+    }
+}
+
 pub fn match_keyword_exact(s: &[u8]) -> Option<TokenType> {
     macro_rules! match_str_some {
         ($s: expr, { $($key: expr => $value: expr,)* }) => {

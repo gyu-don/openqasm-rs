@@ -1,11 +1,15 @@
 use std::error::Error;
-use std::fmt::{self, Debug, Display};
+use std::fmt::{self, Display};
 use std::path::Path;
 use std::str;
 use tokens::{self, Token, TokenType};
 
-pub fn tokenize<'a>(code: &'a str, filename: &'a Path) -> Vec<TokenResult<'a>> {
-    SplitToken::new(code, &filename).collect()
+pub fn tokenize<'a>(code: &'a str, filename: &'a Path) -> TokenIterator<'a> {
+    TokenIterator {
+        code,
+        filename,
+        pos: 0,
+    }
 }
 
 #[derive(Debug)]
@@ -39,23 +43,13 @@ impl<'a> Error for TokenizeError<'a> {
 pub type TokenResult<'a> = Result<Token<'a>, TokenizeError<'a>>;
 
 #[derive(Debug)]
-struct SplitToken<'a> {
+pub struct TokenIterator<'a> {
     code: &'a str,
     filename: &'a Path,
     pos: usize,
 }
 
-impl<'a> SplitToken<'a> {
-    fn new(code: &'a str, filename: &'a Path) -> SplitToken<'a> {
-        SplitToken {
-            code,
-            filename,
-            pos: 0,
-        }
-    }
-}
-
-impl<'a> Iterator for SplitToken<'a> {
+impl<'a> Iterator for TokenIterator<'a> {
     type Item = TokenResult<'a>;
     fn next(&mut self) -> Option<Self::Item> {
         #[derive(Debug)]
