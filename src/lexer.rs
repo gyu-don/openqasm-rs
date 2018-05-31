@@ -19,6 +19,7 @@ pub struct TokenizeError<'a> {
     pub len: usize,
     errstr: String,
 }
+
 impl<'a> TokenizeError<'a> {
     fn new(filename: &'a Path, pos: usize, len: usize, errmsg: &str) -> TokenizeError<'a> {
         TokenizeError {
@@ -29,11 +30,13 @@ impl<'a> TokenizeError<'a> {
         }
     }
 }
+
 impl<'a> Display for TokenizeError<'a> {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
         write!(f, "{}", self.errstr)
     }
 }
+
 impl<'a> Error for TokenizeError<'a> {
     fn description(&self) -> &str {
         &self.errstr
@@ -49,9 +52,12 @@ pub struct TokenIterator<'a> {
     pos: usize,
 }
 
-impl<'a> Iterator for TokenIterator<'a> {
-    type Item = TokenResult<'a>;
-    fn next(&mut self) -> Option<Self::Item> {
+impl<'a> TokenIterator<'a> {
+    pub fn filter_comment(self) -> impl Iterator<Item=TokenResult<'a>> {
+        self.filter(|r| r.as_ref().map(|t| !t.is_comment()).unwrap_or(true))
+    }
+
+    fn get_token(&mut self) -> Option<TokenResult<'a>> {
         #[derive(Debug)]
         enum LexerState {
             Whitespace,
@@ -280,5 +286,12 @@ impl<'a> Iterator for TokenIterator<'a> {
             cur += 1;
         }
         None
+    }
+}
+
+impl<'a> Iterator for TokenIterator<'a> {
+    type Item = TokenResult<'a>;
+    fn next(&mut self) -> Option<Self::Item> {
+        self.get_token()
     }
 }
