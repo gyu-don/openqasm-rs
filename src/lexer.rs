@@ -1,8 +1,49 @@
-use std::path::Path;
+use std::collections::HashMap;
+use std::error::Error;
+use std::fs::File;
+use std::io::{self, BufRead, Read};
+use std::path::{Path, PathBuf};
 use std::str;
 
 use errors::TokenizeError;
 use tokens::{self, Token, TokenType};
+
+pub type TokenResult<'a> = Result<Token<'a>, TokenizeError<'a>>;
+
+pub struct RecursiveTokenizer<'a> {
+    codes: HashMap<PathBuf, String>,
+    stack: Vec<Box<Iterator<Item=TokenResult<'a>>>>
+}
+
+impl<'a> RecursiveTokenizer<'a> {
+    pub fn new(filename: &Path) -> RecursiveTokenizer {
+        let mut rtok = RecursiveTokenizer::get_empty();
+        if let Err(_) = rtok.load(filename.to_path_buf()) {
+        }
+        rtok
+    }
+
+    fn get_empty() -> RecursiveTokenizer<'a> {
+        RecursiveTokenizer {
+            codes: HashMap::new(),
+            stack: Vec::new()
+        }
+    }
+
+    fn load(&mut self, filename: PathBuf) -> io::Result<()> {
+        if self.codes.contains_key(&filename) {
+            return Ok(());
+        }
+
+        let f = File::open(&filename)?;
+        let mut f = io::BufReader::new(f);
+        let mut code = String::new();
+        f.read_to_string(&mut code)?;
+        self.codes.insert(filename, code);
+        self.stack.push(Box::new(TokenIterator::from_owned(&self.codes[&filename], &self.codes.entry(filename).key())));
+        Ok(())
+    }
+}
 
 pub fn tokenize<'a>(code: &'a str, filename: &'a Path) -> TokenIterator<'a> {
     TokenIterator {
@@ -12,8 +53,6 @@ pub fn tokenize<'a>(code: &'a str, filename: &'a Path) -> TokenIterator<'a> {
     }
 }
 
-pub type TokenResult<'a> = Result<Token<'a>, TokenizeError<'a>>;
-
 #[derive(Debug)]
 pub struct TokenIterator<'a> {
     code: &'a str,
@@ -21,9 +60,25 @@ pub struct TokenIterator<'a> {
     pos: usize,
 }
 
+pub fn filter_comment<'a>(tokenresults: impl Iterator<Item=TokenResult<'a>>) -> impl Iterator<Item=TokenResult<'a>> {
+    tokenresults.filter(|r| r.as_ref().map(|t| !t.is_comment()).unwrap_or(true))
+}
+
 impl<'a> TokenIterator<'a> {
+    pub fn new(code: &'a str, filename: &'a Path) -> TokenIterator<'a> {
+        tokenize(code, filename)
+    }
+
+    pub fn from_owned(code: &'a String, filename: &'a PathBuf) -> TokenIterator<'a> {
+        TokenIterator {
+            code: code.as_ref(),
+            filename: filename.as_ref(),
+            pos: 0
+        }
+    }
+
     pub fn filter_comment(self) -> impl Iterator<Item=TokenResult<'a>> {
-        self.filter(|r| r.as_ref().map(|t| !t.is_comment()).unwrap_or(true))
+        filter_comment(self)
     }
 
     fn get_token(&mut self) -> Option<TokenResult<'a>> {
@@ -68,7 +123,7 @@ impl<'a> TokenIterator<'a> {
                         return Some(Err(TokenizeError::new(self.filename,
                                                            pos,
                                                            1,
-                                                           "Unexpected character.")));
+                                                           "Unexpected character.".to_owned())));
                     }
                 }
                 LexerState::Punctuation => {
@@ -89,7 +144,7 @@ impl<'a> TokenIterator<'a> {
                             return Some(Err(TokenizeError::new(self.filename,
                                                                pos,
                                                                1,
-                                                               "Unexpected character.")));
+                                                               "Unexpected character.".to_owned())));
                         }
                     } else if code[self.pos] == b'-' {
                         assert_eq!(self.pos + 1, cur);
@@ -152,7 +207,7 @@ impl<'a> TokenIterator<'a> {
                                 return Some(Err(TokenizeError::new(self.filename,
                                                                    pos,
                                                                    1,
-                                                                   "Unexpected character.")));
+                                                                   "Unexpected character.".to_owned())));
                             }
                         }
                     }
@@ -232,7 +287,7 @@ impl<'a> TokenIterator<'a> {
                                 return Some(Err(TokenizeError::new(self.filename,
                                                                    self.pos,
                                                                    1,
-                                                                   e.description())));
+                                                                   e.description().to_owned())));
                             }
                         }
                     }

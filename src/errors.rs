@@ -10,12 +10,12 @@ pub struct TokenizeError<'a> {
 }
 
 impl<'a> TokenizeError<'a> {
-    pub fn new(filename: &'a Path, pos: usize, len: usize, errmsg: &str) -> TokenizeError<'a> {
+    pub fn new(filename: &'a Path, pos: usize, len: usize, errstr: String) -> TokenizeError<'a> {
         TokenizeError {
-            filename: filename,
+            filename,
             pos,
             len,
-            errstr: errmsg.to_owned(),
+            errstr,
         }
     }
 }
