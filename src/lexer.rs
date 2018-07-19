@@ -1,21 +1,22 @@
 use std::collections::HashMap;
 use std::error::Error;
 use std::fs::File;
-use std::io::{self, BufRead, Read};
-use std::path::{Path, PathBuf};
+use std::io::{self, Read};
+use std::path::Path;
+use std::rc::Rc;
 use std::str;
 
 use errors::TokenizeError;
 use tokens::{self, Token, TokenType};
 
-pub type TokenResult<'a> = Result<Token<'a>, TokenizeError<'a>>;
+pub type TokenResult = Result<Token, TokenizeError>;
 
-pub struct RecursiveTokenizer<'a> {
-    codes: HashMap<PathBuf, String>,
-    stack: Vec<Box<Iterator<Item=TokenResult<'a>>>>
+pub struct RecursiveTokenizer {
+    codes: HashMap<Rc<Path>, Rc<str>>,
+    stack: Vec<Box<Iterator<Item=TokenResult>>>
 }
 
-impl<'a> RecursiveTokenizer<'a> {
+impl RecursiveTokenizer {
     pub fn new(filename: &Path) -> RecursiveTokenizer {
         let mut rtok = RecursiveTokenizer::get_empty();
         if let Err(_) = rtok.load(filename.to_path_buf()) {
@@ -23,15 +24,15 @@ impl<'a> RecursiveTokenizer<'a> {
         rtok
     }
 
-    fn get_empty() -> RecursiveTokenizer<'a> {
+    fn get_empty() -> RecursiveTokenizer {
         RecursiveTokenizer {
             codes: HashMap::new(),
             stack: Vec::new()
         }
     }
 
-    fn load(&mut self, filename: PathBuf) -> io::Result<()> {
-        if self.codes.contains_key(&filename) {
+    fn load<P: AsRef<Path>>(&mut self, filename: P) -> io::Result<()> {
+        if self.codes.contains_key(filename.as_ref()) {
             return Ok(());
         }
 
@@ -39,13 +40,14 @@ impl<'a> RecursiveTokenizer<'a> {
         let mut f = io::BufReader::new(f);
         let mut code = String::new();
         f.read_to_string(&mut code)?;
-        self.codes.insert(filename, code);
-        self.stack.push(Box::new(TokenIterator::from_owned(&self.codes[&filename], &self.codes.entry(filename).key())));
+        let filename: Rc<Path> = filename.as_ref().into();
+        self.codes.insert(filename.clone(), code.into());
+        self.stack.push(Box::new(TokenIterator::new(self.codes[&filename].clone(), filename.clone())));
         Ok(())
     }
 }
 
-pub fn tokenize<'a>(code: &'a str, filename: &'a Path) -> TokenIterator<'a> {
+pub fn tokenize(code: Rc<str>, filename: Rc<Path>) -> TokenIterator {
     TokenIterator {
         code,
         filename,
@@ -54,34 +56,26 @@ pub fn tokenize<'a>(code: &'a str, filename: &'a Path) -> TokenIterator<'a> {
 }
 
 #[derive(Debug)]
-pub struct TokenIterator<'a> {
-    code: &'a str,
-    filename: &'a Path,
+pub struct TokenIterator {
+    code: Rc<str>,
+    filename: Rc<Path>,
     pos: usize,
 }
 
-pub fn filter_comment<'a>(tokenresults: impl Iterator<Item=TokenResult<'a>>) -> impl Iterator<Item=TokenResult<'a>> {
+pub fn filter_comment(tokenresults: impl Iterator<Item=TokenResult>) -> impl Iterator<Item=TokenResult> {
     tokenresults.filter(|r| r.as_ref().map(|t| !t.is_comment()).unwrap_or(true))
 }
 
-impl<'a> TokenIterator<'a> {
-    pub fn new(code: &'a str, filename: &'a Path) -> TokenIterator<'a> {
+impl TokenIterator {
+    pub fn new(code: Rc<str>, filename: Rc<Path>) -> TokenIterator {
         tokenize(code, filename)
     }
 
-    pub fn from_owned(code: &'a String, filename: &'a PathBuf) -> TokenIterator<'a> {
-        TokenIterator {
-            code: code.as_ref(),
-            filename: filename.as_ref(),
-            pos: 0
-        }
-    }
-
-    pub fn filter_comment(self) -> impl Iterator<Item=TokenResult<'a>> {
+    pub fn filter_comment(self) -> impl Iterator<Item=TokenResult> {
         filter_comment(self)
     }
 
-    fn get_token(&mut self) -> Option<TokenResult<'a>> {
+    fn get_token(&mut self) -> Option<TokenResult> {
         #[derive(Debug)]
         enum LexerState {
             Whitespace,
@@ -120,7 +114,7 @@ impl<'a> TokenIterator<'a> {
                     } else {
                         let pos = self.pos;
                         self.pos += 1;
-                        return Some(Err(TokenizeError::new(self.filename,
+                        return Some(Err(TokenizeError::new(self.filename.clone(),
                                                            pos,
                                                            1,
                                                            "Unexpected character.".to_owned())));
@@ -132,7 +126,7 @@ impl<'a> TokenIterator<'a> {
                         if ch == b'=' {
                             let tok = Token {
                                 token: TokenType::DoubleEqual,
-                                filename: Some(self.filename.as_ref()),
+                                filename: self.filename.clone(),
                                 pos: self.pos,
                                 len: 2,
                             };
@@ -141,7 +135,7 @@ impl<'a> TokenIterator<'a> {
                         } else {
                             let pos = self.pos;
                             self.pos += 1;
-                            return Some(Err(TokenizeError::new(self.filename,
+                            return Some(Err(TokenizeError::new(self.filename.clone(),
                                                                pos,
                                                                1,
                                                                "Unexpected character.".to_owned())));
@@ -151,7 +145,7 @@ impl<'a> TokenIterator<'a> {
                         if code[cur] == b'>' {
                             let tok = Token {
                                 token: TokenType::Arrow,
-                                filename: Some(self.filename.as_ref()),
+                                filename: self.filename.clone(),
                                 pos: self.pos,
                                 len: 2,
                             };
@@ -160,7 +154,7 @@ impl<'a> TokenIterator<'a> {
                         } else {
                             let tok = Token {
                                 token: TokenType::Minus,
-                                filename: Some(self.filename.as_ref()),
+                                filename: self.filename.clone(),
                                 pos: self.pos,
                                 len: 1,
                             };
@@ -177,7 +171,7 @@ impl<'a> TokenIterator<'a> {
                         } else {
                             let tok = Token {
                                 token: TokenType::Devide,
-                                filename: Some(self.filename.as_ref()),
+                                filename: self.filename.clone(),
                                 pos: self.pos,
                                 len: 1,
                             };
@@ -194,7 +188,7 @@ impl<'a> TokenIterator<'a> {
                             Some(kwd) => {
                                 let tok = Token {
                                     token: kwd,
-                                    filename: Some(self.filename.as_ref()),
+                                    filename: self.filename.clone(),
                                     pos: self.pos,
                                     len: 1,
                                 };
@@ -204,7 +198,7 @@ impl<'a> TokenIterator<'a> {
                             None => {
                                 let pos = self.pos;
                                 self.pos += 1;
-                                return Some(Err(TokenizeError::new(self.filename,
+                                return Some(Err(TokenizeError::new(self.filename.clone(),
                                                                    pos,
                                                                    1,
                                                                    "Unexpected character.".to_owned())));
@@ -224,7 +218,7 @@ impl<'a> TokenIterator<'a> {
                                 .unwrap()));
                         let tok = Token {
                             token: toktype,
-                            filename: Some(self.filename.as_ref()),
+                            filename: self.filename.clone(),
                             pos: self.pos,
                             len: cur - self.pos,
                         };
@@ -243,7 +237,7 @@ impl<'a> TokenIterator<'a> {
                                 .unwrap()
                                 .parse()
                                 .unwrap()),
-                            filename: Some(self.filename.as_ref()),
+                            filename: self.filename.clone(),
                             pos: self.pos,
                             len: cur - self.pos,
                         };
@@ -260,7 +254,7 @@ impl<'a> TokenIterator<'a> {
                                 .unwrap()
                                 .parse()
                                 .unwrap()),
-                            filename: Some(self.filename.as_ref()),
+                            filename: self.filename.clone(),
                             pos: self.pos,
                             len: cur - self.pos,
                         };
@@ -276,7 +270,7 @@ impl<'a> TokenIterator<'a> {
                             Ok(s) => {
                                 let tok = Token {
                                     token: TokenType::StringLiteral(s),
-                                    filename: Some(self.filename.as_ref()),
+                                    filename: self.filename.clone(),
                                     pos: self.pos,
                                     len: cur - self.pos,
                                 };
@@ -284,7 +278,7 @@ impl<'a> TokenIterator<'a> {
                                 return Some(Ok(tok));
                             }
                             Err(e) => {
-                                return Some(Err(TokenizeError::new(self.filename,
+                                return Some(Err(TokenizeError::new(self.filename.clone(),
                                                                    self.pos,
                                                                    1,
                                                                    e.description().to_owned())));
@@ -298,7 +292,7 @@ impl<'a> TokenIterator<'a> {
                     } else {
                         let tok = Token {
                             token: TokenType::Comment(code[self.pos..cur].to_owned()),
-                            filename: Some(self.filename.as_ref()),
+                            filename: self.filename.clone(),
                             pos: self.pos,
                             len: cur - self.pos,
                         };
@@ -313,9 +307,10 @@ impl<'a> TokenIterator<'a> {
     }
 }
 
-impl<'a> Iterator for TokenIterator<'a> {
-    type Item = TokenResult<'a>;
+impl Iterator for TokenIterator {
+    type Item = TokenResult;
     fn next(&mut self) -> Option<Self::Item> {
         self.get_token()
+        //None
     }
 }

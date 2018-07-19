@@ -13,7 +13,7 @@ fn main() {
         let mut f = io::BufReader::new(f);
         let mut code = String::new();
         f.read_to_string(&mut code).expect("Failed to read the target file.");
-        let mut tokens = lexer::tokenize(&code, Path::new(&filename));
+        let mut tokens = lexer::tokenize(code.into(), Path::new(&filename).into());
         for tok in tokens {
             println!("{:?}", tok);
         }

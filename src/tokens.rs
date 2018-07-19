@@ -1,10 +1,11 @@
 use std::path::Path;
+use std::rc::Rc;
 use keyword;
 
 #[derive(Debug)]
-pub struct Token<'a> {
+pub struct Token {
     pub token: TokenType,
-    pub filename: Option<&'a Path>,
+    pub filename: Rc<Path>,
     pub pos: usize,
     pub len: usize,
 }
@@ -58,7 +59,7 @@ pub enum TokenType {
     RSqBracket,
 }
 
-impl<'a> Token<'a> {
+impl Token {
     pub fn is_comment(&self) -> bool {
         match self.token {
             TokenType::Comment(_) => true,

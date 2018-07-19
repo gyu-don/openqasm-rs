@@ -1,16 +1,17 @@
 use std::{error, fmt};
 use std::path::Path;
+use std::rc::Rc;
 
 #[derive(Debug)]
-pub struct TokenizeError<'a> {
-    pub filename: &'a Path,
+pub struct TokenizeError {
+    pub filename: Rc<Path>,
     pub pos: usize,
     pub len: usize,
     errstr: String,
 }
 
-impl<'a> TokenizeError<'a> {
-    pub fn new(filename: &'a Path, pos: usize, len: usize, errstr: String) -> TokenizeError<'a> {
+impl TokenizeError {
+    pub fn new(filename: Rc<Path>, pos: usize, len: usize, errstr: String) -> TokenizeError {
         TokenizeError {
             filename,
             pos,
@@ -20,13 +21,13 @@ impl<'a> TokenizeError<'a> {
     }
 }
 
-impl<'a> fmt::Display for TokenizeError<'a> {
+impl fmt::Display for TokenizeError {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
         write!(f, "{}", self.errstr)
     }
 }
 
-impl<'a> error::Error for TokenizeError<'a> {
+impl error::Error for TokenizeError {
     fn description(&self) -> &str {
         &self.errstr
     }
