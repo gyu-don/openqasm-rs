@@ -66,6 +66,12 @@ impl Token {
             _ => false
         }
     }
+    pub fn is_include(&self) -> bool {
+        match self.token {
+            TokenType::Include => true,
+            _ => false
+        }
+    }
 }
 
 pub fn match_keyword_exact(s: &[u8]) -> Option<TokenType> {

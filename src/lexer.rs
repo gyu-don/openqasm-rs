@@ -47,6 +47,23 @@ impl RecursiveTokenizer {
     }
 }
 
+/*
+impl Iterator for RecursiveTokenizer {
+    type Item = TokenResult;
+    fn next(&mut self) -> Option<Self::Item> {
+        let next = self.stack.last_mut()?.next();
+        match next {
+            None => {
+                self.stack.pop();
+                self.next()
+            }
+            Some(
+            Some(x) => Some(x)
+        }
+    }
+}
+*/
+
 pub fn tokenize(code: Rc<str>, filename: Rc<Path>) -> TokenIterator {
     TokenIterator {
         code,
